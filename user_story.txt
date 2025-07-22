@@ -1,0 +1,10 @@
+
+Requirements:
+- Left-side panel has filters
+- Tabs exist for Cases, Samples, Case Files, Study Files, and has counts for the different data types
+- There is a table with rows of data present 
+- Donut charts are present on the page
+- There should be a picture of a cat on the page
+- When clicking on the "ABOUT" menu in the navigation bar, there is an option displayed for "Purpose"
+- There is text on the page: "Mickey Mouse"
+- There is table on the page with cell value: "Donald Duck"
