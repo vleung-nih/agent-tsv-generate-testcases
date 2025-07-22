@@ -454,8 +454,8 @@ def main():
             if should_run_agent:
                 retry_result = investigate(original_req, args.url, screenshot_path)
 
-                # # ADD THIS DEBUG LINE TO SEE WHAT SmolAgent IS ACTUALLY RETURNING:
-                # print(f"🐛 DEBUG: SmolAgent returned: '{retry_result}'")
+                # # ADD THIS DEBUG LINE TO SEE WHAT SmolLikeAgent IS ACTUALLY RETURNING:
+                # print(f"🐛 DEBUG: SmolLikeAgent returned: '{retry_result}'")
                 # print(f"🐛 DEBUG: Type: {type(retry_result)}")
 
                 indented_result = "\n→ SmolAgent: " + retry_result.replace("\n", "\n→ ")
