@@ -1,7 +1,7 @@
 # Autonomous Visual UI Validation Framework
 
 ## Overview
-This project is a Visual UI Validation framework that leverages AI agents to autonomously verify user interface requirements. It integrates tools like Playwright for browser automation, Claude-based action planning for intelligent decision-making, and AWS Rekognition and AWS Textract for object detectition and OCR text recognition.
+This project is a Visual UI Validation framework that leverages AI agents to autonomously verify user interface requirements. It integrates tools like Playwright for browser automation, Claude-based action planning for intelligent decision-making, and AWS Rekognition and AWS Textract for object detection and OCR text recognition.
 
 ## Prerequisites
 - Python 3.8 or higher
