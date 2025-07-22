@@ -1,0 +1,23 @@
+[PASS]
+The left-side panel has filters for cases, such as Program, Study, Study Type, Biobank, Study Participation, Breed, Diagnosis, Primary Disease Site, Stage of Disease, Response to Treatment, Sex, Age, and Neutered Status.
+
+[PASS] 
+There are tabs present for Cases (972), Samples (4433), Case Files (2638), and Study Files (21), with counts for each data type shown.
+
+[PASS]
+There is a table with rows of data present, displaying information about cases, such as Case ID, Study Code, Study Type, Breed, Diagnosis, Stage of Disease, Age, Sex, Neutered Status, Weight, Response to Treatment, and Cohort.
+
+[PASS]
+There are donut charts present on the page, representing various aspects of the data, such as Programs and Studies, Breed, Diagnosis, Stage of Disease, Sex, and File Type.
+
+[FAIL]
+There is no picture of a cat visible on the page.
+
+[FAIL]
+While there is a navigation bar with a menu option labeled "ABOUT", it does not appear to have an option displayed for "Purpose" when clicked.
+
+[FAIL] 
+The text "Mickey Mouse" is not present on the page.
+
+[FAIL]
+The table on the page does not contain a cell value with the text "Donald Duck".
