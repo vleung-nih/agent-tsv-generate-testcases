@@ -222,13 +222,13 @@ Only return the list, nothing else.
     
 
 # AWS Rekognition managed service to check for objects in an image
-async def rekognition_check_object(agent, requirement: str, url: str, image_path: str = "screenshot.png") -> bool:
+async def rekognition_check_object(agent, requirement: str, url: str, image_path: str = "screenshot.png") -> str:
     agent.log("🖼️ Asking Claude what object(s) to detect in the image...")
     target_labels = get_rekognition_labels_from_claude(requirement)
 
     if not target_labels:
         agent.log("⚠️ Claude could not identify a target label. Skipping vision detection.")
-        return False
+        return "[FAIL] No target label from Claude"
 
     agent.log(f"🎯 Claude says to look for: {target_labels}")
 
@@ -247,14 +247,14 @@ async def rekognition_check_object(agent, requirement: str, url: str, image_path
         for label in target_labels:
             if label.lower() in detected_labels:
                 agent.log(f"✅ Found '{label}' in the image.")
-                return True
+                return f"[PASS] Found '{label}' via Rekognition"
 
         agent.log(f"❌ None of the target labels {target_labels} were found.")
-        return False
+        return f"[FAIL] Did not find any of {target_labels}"
 
     except Exception as e:
         agent.log(f"⚠️ Rekognition error: {e}")
-        return False
+        return f"[FAIL] Rekognition error: {e}"
 
 
 
