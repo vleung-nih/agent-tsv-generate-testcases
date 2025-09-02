@@ -14,10 +14,58 @@ from typing import List
 import io
 
 
+# --- DOM helpers -----------------------------------------------------------
+async def extract_dom_structure(page) -> dict:
+    """Collect basic interactive elements from the current page.
+
+    Returns a dictionary with lists of button texts, navigation link texts, and
+    form field identifiers (placeholder, name or id).
+    """
+
+    buttons = []
+    for el in await page.query_selector_all("button, [role='button']"):
+        try:
+            text = (await el.inner_text()).strip()
+            if text:
+                buttons.append(text)
+        except Exception:
+            continue
+
+    links = []
+    for el in await page.query_selector_all("nav a, a[href]"):
+        try:
+            text = (await el.inner_text()).strip()
+            if text:
+                links.append(text)
+        except Exception:
+            continue
+
+    fields = []
+    for el in await page.query_selector_all("input, textarea, select"):
+        try:
+            placeholder = await el.get_attribute("placeholder")
+            name = await el.get_attribute("name")
+            element_id = await el.get_attribute("id")
+            label = placeholder or name or element_id
+            if label:
+                fields.append(label)
+        except Exception:
+            continue
+
+    return {
+        "buttons": buttons,
+        "links": links,
+        "form_fields": fields,
+    }
+
+
 # Claude-Based Action Planner -- Let Claude parse the requirement into a step-by-step plan for browser actions:
-def extract_ui_plan_from_claude(requirement: str) -> list[dict]:
+def extract_ui_plan_from_claude(requirement: str, dom_summary: str = "") -> list[dict]:
     prompt = f"""
 You are a UI test planning agent.
+
+You have access to the following page summary of buttons, links and form fields:
+{dom_summary}
 
 Given the requirement:
 \"\"\"{requirement}\"\"\"
@@ -69,11 +117,6 @@ Only include the list. Do not explain anything else.
 
 # Playwright tool to click buttons and search for text based on the plan from Claude
 async def click_buttons_and_search(agent, requirement: str, url: str) -> str:
-    print("📋 Using Claude to extract UI plan...")
-    plan = extract_ui_plan_from_claude(requirement)
-    print("🤖 UI plan from Claude:")
-    print(json.dumps(plan, indent=2))
-
     screenshot_dir = "data/screenshots"
     os.makedirs(screenshot_dir, exist_ok=True)
 
@@ -92,7 +135,7 @@ async def click_buttons_and_search(agent, requirement: str, url: str) -> str:
                 except Exception as e2:
                     print(f"❌ Retry failed: {e2}")
                     return f"[FAIL] Could not load page: {e2}"
-                
+
             # Attempt to click the 'Continue' button if it exists
             try:
                 continue_button = await page.query_selector("button:has-text('Continue')")
@@ -101,6 +144,20 @@ async def click_buttons_and_search(agent, requirement: str, url: str) -> str:
                     await page.wait_for_timeout(500)  # Wait for the action to complete
             except Exception as e:
                 print(f"No 'Continue' button to click or error occurred: {e}")
+
+            # 🧭 Extract DOM information for planning
+            dom_info = await extract_dom_structure(page)
+            dom_summary = (
+                f"Buttons: {', '.join(dom_info['buttons'][:20])}\n"
+                f"Links: {', '.join(dom_info['links'][:20])}\n"
+                f"Form fields: {', '.join(dom_info['form_fields'][:20])}"
+            )
+            agent.log(f"🧭 DOM summary:\n{dom_summary}")
+
+            print("📋 Using Claude to extract UI plan...")
+            plan = extract_ui_plan_from_claude(requirement, dom_summary)
+            print("🤖 UI plan from Claude:")
+            print(json.dumps(plan, indent=2))
 
             results = []
             step_num = 1
