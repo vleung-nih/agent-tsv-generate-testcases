@@ -55,6 +55,94 @@ async def capture_screenshot(url: str, save_path: str):
         await browser.close()
 
 
+def suggest_test_cases(url: str) -> list[str]:
+    """Generate high-level UI test cases for a given URL.
+
+    This helper launches the page with Playwright, attempts to dismiss a
+    "Continue" button if present, captures a screenshot and a snippet of the
+    DOM, and then calls Claude on Bedrock asking for suggested UI test cases.
+    The returned suggestions are written to ``result.txt`` inside a per-run
+    folder under ``data/runs`` and also returned as a list of strings.
+    """
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_dir = Path(f"data/runs/run_{timestamp}")
+    base_dir.mkdir(parents=True, exist_ok=True)
+    screenshot_path = base_dir / "screenshot.png"
+    result_path = base_dir / "result.txt"
+
+    async def _collect(url: str) -> str:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(viewport={"width": 1920, "height": 1080})
+            page = await context.new_page()
+            await page.goto(url, timeout=45000)
+            await page.wait_for_load_state("networkidle")
+            try:
+                btn = await page.query_selector("button:has-text('Continue')")
+                if btn:
+                    await btn.click()
+                    await page.wait_for_timeout(500)
+            except Exception:
+                pass
+            html = await page.content()
+            await page.screenshot(path=screenshot_path, full_page=True)
+            await browser.close()
+            return html
+
+    html_content = asyncio.run(_collect(url))
+    dom_snippet = html_content[:2000]
+
+    base64_img = encode_image_to_base64(str(screenshot_path))
+    prompt = (
+        "You are a QA engineer. Given the following DOM snippet and screenshot, "
+        "propose high-level UI test cases as a bullet list."
+        f"\n\nDOM snippet:\n{dom_snippet}"
+    )
+
+    body = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": base64_img,
+                        },
+                    },
+                ],
+            }
+        ],
+        "max_tokens": 400,
+    }
+
+    bedrock = boto3.client("bedrock-runtime", region_name=REGION)
+    response = bedrock.invoke_model(
+        body=json.dumps(body).encode("utf-8"),
+        modelId=MODEL_ID,
+        accept="application/json",
+        contentType="application/json",
+    )
+
+    raw_result = response["body"].read().decode("utf-8")
+    parsed = json.loads(raw_result)
+    text = ""
+    if "content" in parsed and isinstance(parsed["content"], list):
+        for item in parsed["content"]:
+            if item.get("type") == "text":
+                text += item.get("text", "")
+
+    with open(result_path, "w") as f:
+        f.write(text.strip())
+
+    return [line.strip() for line in text.strip().splitlines() if line.strip()]
+
+
 
 # Run Claude 3.5 Sonnet on AWS Bedrock with image input
 def run_claude_bedrock(prompt_text: str, image_path: str) -> str:
