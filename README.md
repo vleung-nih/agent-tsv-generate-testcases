@@ -1,7 +1,7 @@
-# Autonomous Visual UI Validation Framework
+# UI Test Case Generator
 
 ## Overview
-This project is a Visual UI Validation framework that leverages AI agents to autonomously verify user interface requirements. It integrates tools like Playwright for browser automation, Claude-based action planning for intelligent decision-making, and AWS Rekognition and AWS Textract for object detection and OCR text recognition.
+This project is a simplified UI Test Case Generator that uses Claude 3.5 Sonnet on AWS Bedrock to automatically generate test case suggestions for web pages. It navigates to a URL, clicks the "Continue" button if present, captures a screenshot, and uses AI to suggest relevant UI test cases.
 
 ## Project Structure
 ```
@@ -9,23 +9,21 @@ autonomous-ui-validator/
 ├── src/                          # Source code
 │   ├── __init__.py
 │   ├── run_agent.py             # Main execution script
-│   ├── smol_like_agent.py       # AI agent implementation
-│   └── tools.py                 # Utility functions
+│   ├── smol_like_agent.py       # Simplified AI agent
+│   └── tools.py                 # Navigation and screenshot utilities
 ├── data/                         # Data and outputs
-│   ├── screenshots/             # Step-by-step screenshots
-│   └── runs/                    # Run outputs and logs
+│   └── runs/                    # Timestamped run outputs
 ├── docs/                         # Documentation
 │   ├── README.md                # This file
-│   ├── user_story.txt           # Example user story
-│   └── Autonomous_UI_Validator_Project.docx
+│   └── user_story.txt           # Example requirements
 ├── requirements.txt              # Python dependencies
-└── .git/                         # Git repository
+└── run.py                       # Simple runner script
 ```
 
 ## Prerequisites
 - Python 3.8 or higher
 - Node.js (for Playwright installation)
-- AWS credentials configured for Bedrock and Rekognition
+- AWS credentials configured for Bedrock
 
 ## Installation
 1. Clone the repository:
@@ -49,49 +47,40 @@ autonomous-ui-validator/
 
 ## Usage
 
-Run the agent from the project root with a single required parameter:
+Run the generator from the project root with a single required parameter:
 
 ```bash
-python run.py --url "<target>"
+python run.py --url "https://example.com"
 ```
 
-The script visits the target URL, captures a full-page screenshot, and asks the Claude-powered agent to analyze the page. From the screenshot and DOM the agent proposes UI test-case ideas and, where possible, tries to execute them using Playwright and supporting tools.
+The script will:
+1. Navigate to the target URL
+2. Click the "Continue" button if present
+3. Capture a full-page screenshot
+4. Use Claude 3.5 to analyze the page and generate UI test case suggestions
 
 Each execution creates a timestamped directory under `data/runs/` containing:
 
 - `screenshot.png` – snapshot of the target page
-- `result.txt` – the generated test-case suggestions and their outcomes
-- `report.html` – formatted summary of the run
+- `result.txt` – the generated test case suggestions
+- `report.html` – formatted HTML report
 - `archive.zip` – compressed artifacts for sharing
-- `run_log.csv` and `trace.jsonl` – detailed logs of the interaction
+- `run_log.csv` – execution log
 
 ## Configuration
-- **Claude-based Action Planner**:
+- **Claude 3.5 Sonnet**:
   Ensure the `MODEL_ID` and `REGION` in `src/run_agent.py` are correctly set for your AWS Bedrock instance.
-
-- **AWS Textract and Rekognition**:
-  Ensure the required AWS services are enabled in your account.
 
 ## Development
 
 ### Running Individual Components
 ```bash
-# Run the agent directly
+# Test the navigation tool
+python -c "from src.tools import navigate_and_capture; print('Navigation tool loaded successfully')"
+
+# Test the agent
 python -c "from src.smol_like_agent import SmolLikeAgent; print('Agent loaded successfully')"
-
-# Test tools module
-python -c "from src.tools import click_buttons_and_search; print('Tools loaded successfully')"
 ```
-
-### Adding New Features
-- Place new source code in the `src/` directory
-- Add new documentation in the `docs/` directory
-- Store new data files in the appropriate `data/` subdirectory
-
-## Future Enhancements
-- Dynamic Playwright script generation.
-- Advanced AI-based verification for complex interactions.
-- Scalable execution for large-scale testing.
 
 ## Troubleshooting
 - If Playwright fails to install, ensure Node.js is installed and accessible.

@@ -1,10 +1,2 @@
 playwright
-pytesseract
 boto3
-Pillow
-argparse
-asyncio
-json
-re
-base64
-zipfile
