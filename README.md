@@ -49,42 +49,21 @@ autonomous-ui-validator/
 
 ## Usage
 
-### Running the Main Program
-From the project root directory (`autonomous-ui-validator/`), run:
+Run the agent from the project root with a single required parameter:
 
 ```bash
-# Option 1: Using the simple runner script (easiest)
-python run.py --url "<target-url>" --prompt-file docs/user_story.txt
-
-# Option 2: Using Python module syntax
-python -m src.run_agent --url "<target-url>" --prompt-file docs/user_story.txt
-
-# Option 3: Using direct path
-python src/run_agent.py --url "<target-url>" --prompt-file docs/user_story.txt
+python run.py --url "<target>"
 ```
 
-### Example Commands
-```bash
-# Run with a specific URL and user story (simplest way)
-python run.py --url "https://example.com" --prompt-file docs/user_story.txt
+The script visits the target URL, captures a full-page screenshot, and asks the Claude-powered agent to analyze the page. From the screenshot and DOM the agent proposes UI test-case ideas and, where possible, tries to execute them using Playwright and supporting tools.
 
-# Run with a custom user story file
-python run.py --url "https://example.com" --prompt-file path/to/your/story.txt
+Each execution creates a timestamped directory under `data/runs/` containing:
 
-# Alternative using module syntax
-python -m src.run_agent --url "https://example.com" --prompt-file docs/user_story.txt
-```
-
-### Output Locations
-- **Screenshots**: `data/screenshots/` - Step-by-step screenshots during execution
-- **Run Reports**: `data/runs/run_<timestamp>/` - Generated reports, logs, and archives
-- **Results**: Each run creates a timestamped folder with:
-  - `screenshot.png` - Final page screenshot
-  - `result.txt` - AI analysis results
-  - `report.html` - Visual HTML report
-  - `archive.zip` - Compressed run data
-  - `run_log.csv` - Execution log
-  - `trace.jsonl` - Detailed trace data
+- `screenshot.png` – snapshot of the target page
+- `result.txt` – the generated test-case suggestions and their outcomes
+- `report.html` – formatted summary of the run
+- `archive.zip` – compressed artifacts for sharing
+- `run_log.csv` and `trace.jsonl` – detailed logs of the interaction
 
 ## Configuration
 - **Claude-based Action Planner**:
