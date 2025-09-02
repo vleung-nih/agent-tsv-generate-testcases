@@ -197,6 +197,39 @@ Respond and start with ONLY [PASS] or [FAIL] for each item, make a new line, and
     return response["body"].read().decode("utf-8")
 
 
+# Suggest potential test cases for a given URL using Claude
+def suggest_test_cases(url: str) -> str:
+    prompt = (
+        "You are a QA test planner. "
+        f"Suggest a list of high level test cases for the webpage located at: {url}. "
+        "Return each test case on a new line starting with '- '."
+    )
+
+    body = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+        "max_tokens": 400,
+    }
+
+    bedrock = boto3.client("bedrock-runtime", region_name=REGION)
+    response = bedrock.invoke_model(
+        body=json.dumps(body).encode("utf-8"),
+        modelId=MODEL_ID,
+        accept="application/json",
+        contentType="application/json",
+    )
+
+    raw = response["body"].read().decode("utf-8")
+    parsed = json.loads(raw)
+    text = ""
+    if "content" in parsed and isinstance(parsed["content"], list):
+        for item in parsed["content"]:
+            if item.get("type") == "text":
+                text += item["text"]
+
+    return text.strip()
+
+
 
 # Agent investigates the requirement
 def investigate(requirement: str, url: str, image_path: str = "screenshot.png") -> str:
@@ -448,27 +481,9 @@ def log_trace(trace_path, entry):
 def main():
     parser = argparse.ArgumentParser(description="Visual UI Validator using Claude 3.5 on Bedrock")
     parser.add_argument("--url", required=True, help="URL of the webpage to validate")
-    parser.add_argument("--prompt", help="Prompt to give the AI agent")
-    parser.add_argument("--prompt-file", help="Path to a text file containing the user story/prompt")
     parser.add_argument("--output", help="Path to save the AI response", default=None)
 
     args = parser.parse_args()
-
-    # Get prompt
-    if args.prompt_file:
-        with open(args.prompt_file, "r") as f:
-            prompt = f.read()
-    elif args.prompt:
-        prompt = args.prompt
-    else:
-        raise ValueError("You must provide either --prompt or --prompt-file")
-
-    # ✅ Extract individual lines from the user story
-    requirement_list = []
-    for line in prompt.strip().splitlines():
-        line = line.strip()
-        if line.startswith("-"):
-            requirement_list.append(line.lstrip("-").strip())
 
 
     # Set up output paths
@@ -484,96 +499,13 @@ def main():
     print(f"📸 Capturing screenshot from {args.url} ...")
     asyncio.run(capture_screenshot(args.url, screenshot_path))
 
-    print("🤖 Sending to Claude 3.5 via AWS Bedrock...")
-    result = run_claude_bedrock(prompt, screenshot_path)
-
-    # Parse the JSON response to extract the content
-    parsed_result = json.loads(result)
-    content = ""
-    if "content" in parsed_result and isinstance(parsed_result["content"], list):
-        for item in parsed_result["content"]:
-            if item["type"] == "text":
-                content += item["text"] + "\n"
-
-    # Format the result for better readability
-    formatted_result = "\n".join(content.strip().splitlines())
+    print("🧪 Suggesting test cases via Claude 3.5 on AWS Bedrock...")
+    result = suggest_test_cases(args.url)
 
     with open(result_txt_path, "w") as f:
-        f.write(formatted_result)
+        f.write(result)
 
-    # Parse for visual report (line-by-line assumption)
-    lines = content.strip().splitlines()
-    augmented_lines = []
-
-    # We'll assume Claude returns results in the same order as the prompt
-    requirement_index = 0
-
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        if "[PASS]" in line or "[FAIL]" in line or "[CANNOT BE VERIFIED]" in line:
-            result_label = "[PASS]" if "[PASS]" in line else "[FAIL]" if "[FAIL]" in line else "[CANNOT BE VERIFIED]"
-            i += 1
-            # Skip explanation lines (optional, we’re using original requirement instead)
-            while i < len(lines) and not any(x in lines[i] for x in ["[PASS]", "[FAIL]", "[CANNOT BE VERIFIED]"]):
-                i += 1
-
-            # ✅ Use the original requirement
-            if requirement_index >= len(requirement_list):
-                print("⚠️ Skipping unmapped Claude result line.")
-                continue
-
-            original_req = requirement_list[requirement_index]
-            requirement_index += 1
-
-
-            # Append Claude’s result
-            line_combined = f"{result_label} {original_req}"
-            augmented_lines.append(line_combined)
-
-            
-            # Trigger fallback if Claude failed OR requirement involves interaction
-            interaction_keywords = ["click", "navigate", "hover", "select"]
-            should_run_agent = (
-                result_label in ["[FAIL]", "[CANNOT BE VERIFIED]"]
-                or any(word in original_req.lower() for word in interaction_keywords)
-            )
-
-            if should_run_agent:
-                retry_result = investigate(original_req, args.url, screenshot_path)
-
-                # # ADD THIS DEBUG LINE TO SEE WHAT SmolLikeAgent IS ACTUALLY RETURNING:
-                # print(f"🐛 DEBUG: SmolLikeAgent returned: '{retry_result}'")
-                # print(f"🐛 DEBUG: Type: {type(retry_result)}")
-
-                indented_result = "\n→ SmolAgent: " + retry_result.replace("\n", "\n→ ")
-                augmented_lines.append(indented_result)
-
-                # Log trace
-                trace_path = base_dir / "trace.jsonl"
-                trace_entry = {
-                    "requirement": original_req,
-                    "claude_result": result_label,
-                    "agent_result": retry_result
-                }
-                log_trace(trace_path, trace_entry)
-
-
-        else:
-            i += 1
-
-
-    result_lines = augmented_lines
-    print("🧠 Asking Claude to reflect on the results...")
-    reflection = get_claude_reflection(requirement_list, result_lines)
-    print("📝 Claude Reflection:")
-    print(reflection)
-
-    # Optionally add this to your HTML report:
-    result_lines.append("-----")
-    result_lines.append("[Claude Reflection]")
-    result_lines.extend(reflection.strip().splitlines())
-
+    result_lines = result.strip().splitlines()
 
     generate_html_report(result_lines, html_report_path)
     archive_files(zip_path, [screenshot_path, result_txt_path, html_report_path])
