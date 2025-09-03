@@ -33,15 +33,40 @@ def suggest_test_cases(url: str, screenshot_path: str, html_content: str) -> str
     """
     
     # Get a snippet of the DOM for context
-    dom_snippet = html_content[:2000]
+    dom_snippet = html_content[:20000]
+    
+    # Print the HTML content to console for debugging
+    print("📄 HTML Content (first 20000 characters):")
+    print("=" * 50)
+    print(dom_snippet)
+    print("=" * 50)
     
     # Encode the screenshot for Claude
     base64_img = encode_image_to_base64(screenshot_path)
     
     prompt = (
-        "You are a QA engineer. Given the following DOM snippet and screenshot, "
-        "propose high-level UI test cases as a bullet list. Focus on common UI elements "
-        "like navigation, buttons, forms, and content verification."
+        "You are a QA engineer analyzing a data exploration interface. Given the following DOM snippet and screenshot, "
+        "generate test cases for the filter functionality on the left sidebar. "
+        "Create test cases that test different filter combinations using checkboxes, text fields, and dropdowns. "
+        "Each test case should be a JSON object with the following structure:\n\n"
+        "{\n"
+        '  "test_name": "Descriptive test name",\n'
+        '  "study": "study_id",\n'
+        '  "filters": {\n'
+        '    "filter_field_name": ["value1", "value2"],\n'
+        '    "another_filter": ["single_value"]\n'
+        '  },\n'
+        '  "expected": {\n'
+        '    "count": expected_number_of_results,\n'
+        '    "description": "What this test verifies"\n'
+        '  }\n'
+        "}\n\n"
+        "Generate 5-8 test cases covering:\n"
+        "- Single filter selections\n"
+        "- Multiple filter combinations\n"
+        "- Edge cases (empty results, all results)\n"
+        "- Different data types (breeds, diagnoses, demographics)\n\n"
+        "Return only the JSON array of test cases, no other text.\n"
         f"\n\nDOM snippet:\n{dom_snippet}"
     )
 
@@ -63,7 +88,7 @@ def suggest_test_cases(url: str, screenshot_path: str, html_content: str) -> str
                 ],
             }
         ],
-        "max_tokens": 400,
+        "max_tokens": 2000,
     }
 
     bedrock = boto3.client("bedrock-runtime", region_name=REGION)
@@ -82,6 +107,39 @@ def suggest_test_cases(url: str, screenshot_path: str, html_content: str) -> str
             if item.get("type") == "text":
                 text += item.get("text", "")
 
+    # Try to parse the response as JSON to validate it
+    try:
+        # Clean up the response text to extract JSON
+        cleaned_text = text.strip()
+        
+        # Remove markdown code blocks
+        if cleaned_text.startswith("```json"):
+            cleaned_text = cleaned_text[7:]
+        elif cleaned_text.startswith("```"):
+            cleaned_text = cleaned_text[3:]
+        if cleaned_text.endswith("```"):
+            cleaned_text = cleaned_text[:-3]
+        
+        # Remove any leading/trailing whitespace
+        cleaned_text = cleaned_text.strip()
+        
+        # Print the cleaned text for debugging
+        print("🔍 Attempting to parse JSON:")
+        print("=" * 30)
+        print(cleaned_text[:500] + "..." if len(cleaned_text) > 500 else cleaned_text)
+        print("=" * 30)
+        
+        # Parse to validate JSON structure
+        test_cases = json.loads(cleaned_text)
+        if isinstance(test_cases, list):
+            print("✅ Successfully parsed JSON array with", len(test_cases), "test cases")
+            return json.dumps(test_cases, indent=2)
+        else:
+            print("⚠️ Parsed JSON but it's not an array")
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON parsing failed: {e}")
+        print("📝 Returning raw text instead")
+    
     return text.strip()
 
 
@@ -170,11 +228,26 @@ def main():
     with open(result_txt_path, "w") as f:
         f.write(test_cases)
 
+    # Try to save as JSON if it's valid JSON
+    try:
+        test_cases_json = json.loads(test_cases)
+        if isinstance(test_cases_json, list):
+            json_path = base_dir / "test_cases.json"
+            with open(json_path, "w") as f:
+                json.dump(test_cases_json, f, indent=2)
+            print(f"📋 Test cases saved as JSON: {json_path}")
+    except json.JSONDecodeError:
+        print("⚠️ Test cases are not in valid JSON format")
+
     # Generate HTML report
     generate_html_report(test_cases, html_report_path)
     
     # Create archive
-    archive_files(zip_path, [screenshot_path, result_txt_path, html_report_path])
+    files_to_archive = [screenshot_path, result_txt_path, html_report_path]
+    json_path = base_dir / "test_cases.json"
+    if json_path.exists():
+        files_to_archive.append(json_path)
+    archive_files(zip_path, files_to_archive)
     
     # Log to CSV
     log_to_csv(csv_log_path, timestamp, screenshot_path, result_txt_path, html_report_path, zip_path)
