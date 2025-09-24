@@ -2,7 +2,11 @@
 import json, re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Optional
-from .expected_results_client import ExpectedResultsClient
+try:
+    from .expected_results_client import ExpectedResultsClient
+except ImportError:
+    # Fallback for when running as a script directly
+    from expected_results_client import ExpectedResultsClient
 
 # ---- Filter extraction helpers ---------------------------------------------
 

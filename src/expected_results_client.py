@@ -20,6 +20,7 @@ class ExpectedResultsClient:
                 headers={"Content-Type": "application/json"},
                 data=json.dumps(payload),
                 timeout=timeout,
+                verify=False,  # Disable SSL verification for self-signed certificates
             )
             if resp.status_code != 200:
                 raise RuntimeError(f"API {resp.status_code}: {resp.text}")

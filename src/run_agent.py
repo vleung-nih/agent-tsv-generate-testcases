@@ -11,8 +11,13 @@ from pathlib import Path
 from datetime import datetime
 import json
 
-from tools import navigate_and_capture
-from src.wire_expected import wire_expected_for_run  
+try:
+    from .tools import navigate_and_capture
+    from .wire_expected import wire_expected_for_run
+except ImportError:
+    # Fallback for when running as a script directly
+    from tools import navigate_and_capture
+    from wire_expected import wire_expected_for_run  
 
 
 
