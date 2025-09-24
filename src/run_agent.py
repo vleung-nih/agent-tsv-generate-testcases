@@ -10,8 +10,9 @@ import zipfile
 from pathlib import Path
 from datetime import datetime
 import json
-from smol_like_agent import SmolLikeAgent
+
 from tools import navigate_and_capture
+from src.wire_expected import wire_expected_for_run  
 
 
 
@@ -32,14 +33,29 @@ def suggest_test_cases(url: str, screenshot_path: str, html_content: str) -> str
     Returns the test case suggestions as a string.
     """
     
-    # Get a snippet of the DOM for context
-    dom_snippet = html_content[:20000]
+    # Get a larger snippet of the DOM for context (increased from 20k to 100k)
+    dom_snippet = html_content[:100000]
     
     # Print the HTML content to console for debugging
-    print("📄 HTML Content (first 20000 characters):")
+    print("📄 HTML Content (first 100000 characters):")
     print("=" * 50)
     print(dom_snippet)
     print("=" * 50)
+    
+    # Also print the total HTML length for reference
+    print(f"📊 Total HTML content length: {len(html_content)} characters")
+    
+    # Check if dropdown options are present in the HTML
+    dropdown_indicators = ["aria-expanded=\"true\"", "class=\"show\"", "aria-hidden=\"false\"", "style=\"display: block\""]
+    found_indicators = []
+    for indicator in dropdown_indicators:
+        if indicator in html_content:
+            found_indicators.append(indicator)
+    
+    if found_indicators:
+        print(f"✅ Found dropdown indicators in HTML: {found_indicators}")
+    else:
+        print("⚠️ No obvious dropdown indicators found in HTML - dropdowns may not have opened properly")
     
     # Encode the screenshot for Claude
     base64_img = encode_image_to_base64(screenshot_path)
@@ -51,22 +67,25 @@ def suggest_test_cases(url: str, screenshot_path: str, html_content: str) -> str
         "Each test case should be a JSON object with the following structure:\n\n"
         "{\n"
         '  "test_name": "Descriptive test name",\n'
-        '  "study": "study_id",\n'
+        '  "study": "OSA01",\n'
         '  "filters": {\n'
         '    "filter_field_name": ["value1", "value2"],\n'
         '    "another_filter": ["single_value"]\n'
         '  },\n'
         '  "expected": {\n'
-        '    "count": expected_number_of_results,\n'
+        '    "count": 123,\n'
         '    "description": "What this test verifies"\n'
         '  }\n'
         "}\n\n"
+        "IMPORTANT: Use actual values from the DOM/screenshot, not placeholders like 'expected_number_of_results' or 'study_id'.\n"
         "Generate 5-8 test cases covering:\n"
+        #"- Study should always be set to: OSA01\n" #For testing purposes only
+        "- Study filter should be set using the studies from the scraped DOM/HTML or screenshot\n"
         "- Single filter selections\n"
         "- Multiple filter combinations\n"
         "- Edge cases (empty results, all results)\n"
         "- Different data types (breeds, diagnoses, demographics)\n\n"
-        "Return only the JSON array of test cases, no other text.\n"
+        "CRITICAL: Return ONLY the JSON array, no explanatory text, no 'Here's a set of test cases' or similar phrases. Start your response directly with [ and end with ].\n"
         f"\n\nDOM snippet:\n{dom_snippet}"
     )
 
@@ -120,6 +139,17 @@ def suggest_test_cases(url: str, screenshot_path: str, html_content: str) -> str
         if cleaned_text.endswith("```"):
             cleaned_text = cleaned_text[:-3]
         
+        # Remove explanatory text before JSON array
+        # Look for the first '[' character which should start the JSON array
+        json_start = cleaned_text.find('[')
+        if json_start > 0:
+            cleaned_text = cleaned_text[json_start:]
+        
+        # Also look for the last ']' to ensure we have a complete JSON array
+        json_end = cleaned_text.rfind(']')
+        if json_end > json_start:
+            cleaned_text = cleaned_text[:json_end + 1]
+        
         # Remove any leading/trailing whitespace
         cleaned_text = cleaned_text.strip()
         
@@ -128,6 +158,11 @@ def suggest_test_cases(url: str, screenshot_path: str, html_content: str) -> str
         print("=" * 30)
         print(cleaned_text[:500] + "..." if len(cleaned_text) > 500 else cleaned_text)
         print("=" * 30)
+        
+        # Check if the text is empty
+        if not cleaned_text:
+            print("❌ Empty response from AI")
+            return "[]"
         
         # Parse to validate JSON structure
         test_cases = json.loads(cleaned_text)
@@ -138,6 +173,10 @@ def suggest_test_cases(url: str, screenshot_path: str, html_content: str) -> str
             print("⚠️ Parsed JSON but it's not an array")
     except json.JSONDecodeError as e:
         print(f"❌ JSON parsing failed: {e}")
+        print("📝 Raw AI response:")
+        print("=" * 30)
+        print(text[:1000] + "..." if len(text) > 1000 else text)
+        print("=" * 30)
         print("📝 Returning raw text instead")
     
     return text.strip()
@@ -208,6 +247,7 @@ def main():
     screenshot_path = base_dir / "screenshot.png"
     result_txt_path = base_dir / "result.txt"
     html_report_path = base_dir / "report.html"
+    html_content_path = base_dir / "scraped_html.txt"
     zip_path = base_dir / "archive.zip"
     csv_log_path = base_dir / "run_log.csv"
 
@@ -220,6 +260,11 @@ def main():
     if not html_content:
         print("❌ Failed to capture page content. Exiting.")
         return
+
+    # Save the full HTML content to a text file
+    with open(html_content_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+    print(f"📄 Full HTML content saved to: {html_content_path}")
 
     print("🧪 Generating test cases via Claude 3.5 on AWS Bedrock...")
     test_cases = suggest_test_cases(args.url, screenshot_path, html_content)
@@ -236,6 +281,14 @@ def main():
             with open(json_path, "w") as f:
                 json.dump(test_cases_json, f, indent=2)
             print(f"📋 Test cases saved as JSON: {json_path}")
+
+            # 🔗 NEW: Call backend API for expected data (no verification yet)
+            try:
+                wire_expected_for_run(base_dir)
+                print(f"🧩 Expected results written to: {base_dir / 'expected_results.json'}")
+            except Exception as e:
+                print(f"⚠️ Expected results generation failed: {e}")
+                print("📝 Continuing without expected results...")
     except json.JSONDecodeError:
         print("⚠️ Test cases are not in valid JSON format")
 
@@ -243,10 +296,13 @@ def main():
     generate_html_report(test_cases, html_report_path)
     
     # Create archive
-    files_to_archive = [screenshot_path, result_txt_path, html_report_path]
+    files_to_archive = [screenshot_path, result_txt_path, html_report_path, html_content_path]
     json_path = base_dir / "test_cases.json"
     if json_path.exists():
         files_to_archive.append(json_path)
+    expected_path = base_dir / "expected_results.json"
+    if expected_path.exists():
+        files_to_archive.append(expected_path)
     archive_files(zip_path, files_to_archive)
     
     # Log to CSV
@@ -262,6 +318,7 @@ def main():
         print(test_cases)
 
     print(f"\n📄 HTML report: {html_report_path}")
+    print(f"📄 Scraped HTML: {html_content_path}")
     print(f"📦 ZIP archive: {zip_path}")
     print(f"📊 Log updated: {csv_log_path}")
 
