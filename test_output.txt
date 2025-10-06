@@ -1,0 +1,70 @@
+[
+  {
+    "test_name": "Filter by single breed",
+    "study": "STUDY0001",
+    "filters": {
+      "breed": [
+        "Labrador Retriever"
+      ]
+    },
+    "expected": {
+      "count": 247,
+      "description": "Verifies that filtering by a single breed returns the correct number of results"
+    }
+  },
+  {
+    "test_name": "Filter by multiple breeds",
+    "study": "STUDY0002",
+    "filters": {
+      "breed": [
+        "Golden Retriever",
+        "Poodle"
+      ]
+    },
+    "expected": {
+      "count": 319,
+      "description": "Verifies that filtering by multiple breeds returns the correct combined results"
+    }
+  },
+  {
+    "test_name": "Filter by diagnosis and age group",
+    "study": "STUDY0003",
+    "filters": {
+      "diagnosis": [
+        "Lymphoma"
+      ],
+      "age_group": [
+        "Senior"
+      ]
+    },
+    "expected": {
+      "count": 85,
+      "description": "Verifies filtering on diagnosis and demographic data like age group"
+    }
+  },
+  {
+    "test_name": "Filter returning no results",
+    "study": "STUDY0004",
+    "filters": {
+      "breed": [
+        "Chihuahua"
+      ],
+      "diagnosis": [
+        "Melanoma"
+      ]
+    },
+    "expected": {
+      "count": 0,
+      "description": "Tests an edge case where the filter combination has no matching results"
+    }
+  },
+  {
+    "test_name": "Filter returning all results",
+    "study": "STUDY0005",
+    "filters": {},
+    "expected": {
+      "count": 12345,
+      "description": "Verifies that not applying any filters returns the full dataset"
+    }
+  }
+]
